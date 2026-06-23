@@ -66,3 +66,27 @@ def create_candlestick_chart(
     )
 
     return fig
+
+
+
+def create_equity_curve_chart(equity_curves: pd.DataFrame, symbol: str):
+    fig = go.Figure()
+
+    for column in equity_curves.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=equity_curves.index,
+                y=equity_curves[column],
+                mode="lines",
+                name=column,
+            )
+        )
+
+    fig.update_layout(
+        title=f"{symbol} Strategy Equity vs Buy & Hold",
+        xaxis_title="Date",
+        yaxis_title="Growth of 1.0",
+        height=420,
+    )
+
+    return fig

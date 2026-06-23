@@ -3,13 +3,14 @@ import re
 import pandas as pd
 import streamlit as st
 
-from backtesting.engine import backtest_market_state
+from backtesting.engine import backtest_market_state, build_equity_curves
 from backtesting.monte_carlo import monte_carlo_simulation
 from backtesting.walk_forward import walk_forward_analysis
 from core.ai_explanation import explain_market_state
-from core.charts import create_candlestick_chart
+from core.charts import create_candlestick_chart, create_equity_curve_chart
 from core.confidence import small_sample_note
 from core.config import (
+    APP_VERSION,
     DEFAULT_HOLDING_DAYS,
     DEFAULT_STOP_ATR_MULTIPLIER,
     DEFAULT_TAKE_PROFIT_ATR_MULTIPLIER,
@@ -24,7 +25,7 @@ from core.report import create_report
 from core.risk import calculate_atr_stops, calculate_position_size, calculate_risk_reward
 from core.scanner import scan_watchlist
 from core.structure import analyze_structure
-from data.providers import get_price_data
+from data.providers import CACHE_DIR, clear_cache, get_price_data, list_cache_files
 
 SYMBOL_PATTERN = re.compile(r"^[A-Z0-9.=\-_/]+$")
 
@@ -45,6 +46,24 @@ def periods_per_year_for_interval(interval: str) -> int:
     return 52 if interval == "1wk" else 252
 
 
+def show_cache_controls() -> None:
+    with st.expander("Cache controls", expanded=False):
+        cache_files = list_cache_files()
+        st.caption(f"Cache directory: `{CACHE_DIR}`")
+        st.write(f"Cached CSV files: {len(cache_files)}")
+        if cache_files:
+            st.dataframe(
+                pd.DataFrame({
+                    "File": [path.name for path in cache_files],
+                    "Size KB": [round(path.stat().st_size / 1024, 1) for path in cache_files],
+                }),
+                width="stretch",
+            )
+        if st.button("Clear cached market data"):
+            removed = clear_cache()
+            st.success(f"Removed {removed} cached files.")
+
+
 def show_methodology() -> None:
     with st.expander("Methodology and limitations", expanded=False):
         st.markdown(
@@ -61,6 +80,7 @@ def show_methodology() -> None:
 
 st.title("Market-State Analyzer")
 show_methodology()
+show_cache_controls()
 
 mode = st.radio(
     "Mode",
@@ -225,6 +245,17 @@ if mode == "Single Symbol Analysis":
         )
         st.plotly_chart(fig, width="stretch")
 
+        st.subheader("Strategy Assumptions")
+        assumptions = {
+            "Holding days": holding_days,
+            "Transaction cost (%)": transaction_cost_pct,
+            "Risk exits": "ATR stop/take-profit" if use_risk_exits else "Fixed holding period",
+            "Stop ATR multiplier": backtest_stop_atr if use_risk_exits else "n/a",
+            "Take-profit ATR multiplier": backtest_take_profit_atr if use_risk_exits else "n/a",
+            "Bar frequency": interval,
+        }
+        st.dataframe(pd.DataFrame([assumptions]), width="stretch")
+
         st.subheader("Backtest by Signal Type")
 
         signals_backtest = backtest["signals"]
@@ -263,6 +294,13 @@ if mode == "Single Symbol Analysis":
             f"Buy and hold return: "
             f"{backtest['benchmark']['buy_and_hold_return']}%"
         )
+
+        st.subheader("Strategy Equity vs Buy & Hold")
+        equity_curves = build_equity_curves(data, backtest["trade_log"])
+        if equity_curves.empty or not backtest["trade_log"]:
+            st.write("No strategy equity curve is available because no trades were generated.")
+        else:
+            st.plotly_chart(create_equity_curve_chart(equity_curves, symbol), width="stretch")
 
         st.subheader("Trade Log")
 
@@ -453,6 +491,11 @@ elif mode == "Watchlist Scanner":
                     ascending=False,
                 )
 
+            error_df = scanner_df[scanner_df.get("Error").notna()] if "Error" in scanner_df.columns else pd.DataFrame()
+            if not error_df.empty:
+                st.warning("Could not scan these symbols:")
+                st.dataframe(error_df[["Symbol", "Error"]], width="stretch")
+
             st.subheader("Watchlist Results")
             st.dataframe(scanner_df, width="stretch")
 
@@ -526,3 +569,9 @@ else:
 
             if portfolio.get("errors"):
                 st.error(f"Could not load: {portfolio['errors']}")
+
+
+st.caption(
+    f"Market-State Analyzer v{APP_VERSION} | Data from Yahoo Finance via yfinance | "
+    "Educational analysis only, not financial advice."
+)

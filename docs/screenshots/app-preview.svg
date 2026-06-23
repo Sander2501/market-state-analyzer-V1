@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#f8fafc"/>
+  <text x="60" y="80" font-family="Arial" font-size="38" font-weight="700" fill="#0f172a">Market-State Analyzer</text>
+  <rect x="60" y="120" width="1080" height="96" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="90" y="175" font-family="Arial" font-size="24" fill="#334155">AAPL | Regime: Trending Up | Signal: Bullish trend | Confidence: Medium</text>
+  <rect x="60" y="250" width="680" height="330" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <polyline points="100,520 180,500 260,470 340,490 420,430 500,390 580,360 680,320" fill="none" stroke="#2563eb" stroke-width="6"/>
+  <polyline points="100,540 180,530 260,510 340,500 420,470 500,450 580,430 680,410" fill="none" stroke="#16a34a" stroke-width="5"/>
+  <text x="90" y="290" font-family="Arial" font-size="22" fill="#334155">Strategy Equity vs Buy &amp; Hold</text>
+  <rect x="780" y="250" width="360" height="330" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="815" y="300" font-family="Arial" font-size="22" font-weight="700" fill="#334155">Backtest Summary</text>
+  <text x="815" y="350" font-family="Arial" font-size="20" fill="#475569">Samples: 12</text>
+  <text x="815" y="390" font-family="Arial" font-size="20" fill="#475569">Hit rate: 58.0%</text>
+  <text x="815" y="430" font-family="Arial" font-size="20" fill="#475569">Avg return: 2.4%</text>
+  <text x="815" y="470" font-family="Arial" font-size="20" fill="#475569">Risk exits: ATR</text>
+</svg>

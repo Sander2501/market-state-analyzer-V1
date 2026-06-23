@@ -4,6 +4,8 @@ A Python + Streamlit application for market-state analysis, signal backtesting, 
 
 > **Disclaimer:** This project does not predict prices and does not constitute financial advice. It describes historical market conditions and compares similar past states.
 
+![Market-State Analyzer preview](docs/screenshots/app-preview.svg)
+
 ## What it does
 
 Rather than predicting where prices will go, this tool asks: "What has historically happened when market conditions looked like this?"
@@ -61,10 +63,14 @@ git clone https://github.com/sander2501/market-state-analyzer.git
 cd market-state-analyzer
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pip install -e .
 python -m streamlit run ui/streamlit_app.py
 ```
+
+## Example Output
+
+See `examples/AAPL_report.md` and `examples/sample_trade_log.csv` for sample generated outputs.
 
 ## Docker
 
@@ -100,14 +106,33 @@ market-state-analyzer/
 └── main.py
 ```
 
+## Common Commands
+
+```bash
+make install-dev
+make test
+make lint
+make run
+```
+
+If `make` is not installed, run the underlying commands directly:
+
+```bash
+pip install -r requirements-dev.txt
+pip install -e .
+pytest
+ruff check .
+python -m streamlit run ui/streamlit_app.py
+```
+
 ## Running Tests
 
 ```bash
-pytest
-ruff check .
+make test
+make lint
 ```
 
 
 ## Screenshots
 
-Add screenshots from a local Streamlit run to `docs/screenshots/` when preparing the project for a portfolio or README showcase.
+A lightweight preview is included at `docs/screenshots/app-preview.svg`. For a portfolio showcase, replace or supplement it with real screenshots from a local Streamlit run.

@@ -37,3 +37,16 @@ def get_price_data(
     data.to_csv(cache_file)
 
     return data
+
+
+
+def list_cache_files() -> list[Path]:
+    return sorted(CACHE_DIR.glob("*.csv"))
+
+
+def clear_cache() -> int:
+    removed = 0
+    for cache_file in list_cache_files():
+        cache_file.unlink()
+        removed += 1
+    return removed

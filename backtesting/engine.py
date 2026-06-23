@@ -212,3 +212,25 @@ def backtest_market_state(
         },
         "trade_log": trade_log,
     }
+
+
+
+def build_equity_curves(data: pd.DataFrame, trade_log: list[dict]) -> pd.DataFrame:
+    df = data.dropna().copy()
+    if df.empty:
+        return pd.DataFrame(columns=["Strategy", "Buy & Hold"])
+
+    curves = pd.DataFrame(index=df.index)
+    first_close = float(df["Close"].iloc[0])
+    curves["Buy & Hold"] = df["Close"] / first_close
+    curves["Strategy"] = 1.0
+
+    equity = 1.0
+    for trade in trade_log:
+        exit_date = trade["Exit Date"]
+        if exit_date not in curves.index:
+            continue
+        equity *= 1 + (trade["Return (%)"] / 100)
+        curves.loc[curves.index >= exit_date, "Strategy"] = equity
+
+    return curves.ffill()
