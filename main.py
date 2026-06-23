@@ -1,8 +1,8 @@
-from data.providers import get_price_data
+from backtesting.engine import backtest_market_state
 from core.indicators import add_indicators
 from core.market_state import analyze_market_state
-from backtesting.engine import backtest_market_state
 from core.report import create_report
+from data.providers import get_price_data
 
 
 def main():

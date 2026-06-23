@@ -1,7 +1,8 @@
-from data.providers import get_price_data
+from backtesting.engine import backtest_market_state
+from core.config import SCAN_AVERAGE_RETURN_WEIGHT, SCAN_HIT_RATE_WEIGHT, SCAN_SHARPE_WEIGHT
 from core.indicators import add_indicators
 from core.market_state import analyze_market_state
-from backtesting.engine import backtest_market_state
+from data.providers import get_price_data
 
 
 def calculate_scan_score(signal: str, stats: dict | None) -> float:
@@ -13,9 +14,9 @@ def calculate_scan_score(signal: str, stats: dict | None) -> float:
     sharpe_ratio = stats["sharpe_ratio"] or 0
 
     score = (
-        hit_rate * 0.4
-        + average_return * 10
-        + sharpe_ratio * 10
+        hit_rate * SCAN_HIT_RATE_WEIGHT
+        + average_return * SCAN_AVERAGE_RETURN_WEIGHT
+        + sharpe_ratio * SCAN_SHARPE_WEIGHT
     )
 
     return round(score, 2)
@@ -65,6 +66,7 @@ def scan_watchlist(
                 "Regime": analysis["regime"],
                 "RSI": analysis["rsi"],
                 "Signal": current_signal,
+                "Confidence": signal_stats["confidence"] if signal_stats else "No sample",
                 "Hit Rate (%)": signal_stats["hit_rate"] if signal_stats else None,
                 "Average Return (%)": signal_stats["average_return"] if signal_stats else None,
                 "Sharpe Ratio": signal_stats["sharpe_ratio"] if signal_stats else None,

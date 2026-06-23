@@ -1,31 +1,66 @@
+import re
+
 import pandas as pd
 import streamlit as st
 
-from data.providers import get_price_data
+from backtesting.engine import backtest_market_state
+from backtesting.monte_carlo import monte_carlo_simulation
+from backtesting.walk_forward import walk_forward_analysis
+from core.ai_explanation import explain_market_state
+from core.charts import create_candlestick_chart
+from core.confidence import small_sample_note
+from core.config import (
+    DEFAULT_HOLDING_DAYS,
+    DEFAULT_STOP_ATR_MULTIPLIER,
+    DEFAULT_TAKE_PROFIT_ATR_MULTIPLIER,
+    DEFAULT_TRANSACTION_COST_PCT,
+    LOW_CONFIDENCE_TRADES,
+)
+from core.explanations import explain_signal
 from core.indicators import add_indicators
 from core.market_state import analyze_market_state
-from core.structure import analyze_structure
-from core.explanations import explain_signal
-from core.scanner import scan_watchlist
-from core.charts import create_candlestick_chart
-from backtesting.engine import backtest_market_state
-from core.report import create_report
-from core.risk import calculate_risk_reward, calculate_atr_stops, calculate_position_size
-from backtesting.walk_forward import walk_forward_analysis
-from backtesting.monte_carlo import monte_carlo_simulation
 from core.portfolio import analyze_portfolio
-from core.ai_explanation import explain_market_state
+from core.report import create_report
+from core.risk import calculate_atr_stops, calculate_position_size, calculate_risk_reward
+from core.scanner import scan_watchlist
+from core.structure import analyze_structure
+from data.providers import get_price_data
+
+SYMBOL_PATTERN = re.compile(r"^[A-Z0-9.=\-_/]+$")
 
 
-def sample_size_note(count: int | None, threshold: int = 10) -> str:
-    if count is None:
-        return "No matching historical sample."
-    if count < threshold:
-        return f"Small sample ({count}); treat these metrics as unstable."
-    return ""
+def clean_symbol(symbol: str) -> str:
+    return symbol.strip().upper()
+
+
+def parse_symbols(text: str) -> list[str]:
+    return [clean_symbol(symbol) for symbol in text.split(",") if clean_symbol(symbol)]
+
+
+def validate_symbols(symbols: list[str]) -> list[str]:
+    return [symbol for symbol in symbols if not SYMBOL_PATTERN.match(symbol)]
+
+
+def periods_per_year_for_interval(interval: str) -> int:
+    return 52 if interval == "1wk" else 252
+
+
+def show_methodology() -> None:
+    with st.expander("Methodology and limitations", expanded=False):
+        st.markdown(
+            f"""
+            - **Market state** uses moving averages, RSI, volatility, and recent range structure.
+            - **Backtests** compare historical occurrences of the same rule-based signal.
+            - **Confidence labels** are based only on sample count: low confidence is fewer than {LOW_CONFIDENCE_TRADES} trades.
+            - **Risk exits** are optional ATR-based stop-loss/take-profit exits. If both stop and take profit are touched in one bar, the stop is assumed first.
+            - **Walk-forward** is a sequential date split with fixed rules, not fitted parameter optimization.
+            - **Monte Carlo** resamples historical trade returns. It does not predict future prices.
+            """
+        )
 
 
 st.title("Market-State Analyzer")
+show_methodology()
 
 mode = st.radio(
     "Mode",
@@ -48,65 +83,97 @@ holding_days = st.slider(
     "Backtest holding days",
     min_value=5,
     max_value=30,
-    value=10,
+    value=DEFAULT_HOLDING_DAYS,
 )
 
 transaction_cost_pct = st.slider(
     "Transaction cost (%)",
     min_value=0.0,
     max_value=1.0,
-    value=0.1,
+    value=DEFAULT_TRANSACTION_COST_PCT,
     step=0.05,
 )
+
+use_risk_exits = st.checkbox("Use ATR stop-loss/take-profit exits in backtests")
+
+if use_risk_exits:
+    col1, col2 = st.columns(2)
+    backtest_stop_atr = col1.slider(
+        "Backtest stop ATR multiplier",
+        1.0,
+        5.0,
+        DEFAULT_STOP_ATR_MULTIPLIER,
+        0.5,
+    )
+    backtest_take_profit_atr = col2.slider(
+        "Backtest take-profit ATR multiplier",
+        1.0,
+        10.0,
+        DEFAULT_TAKE_PROFIT_ATR_MULTIPLIER,
+        0.5,
+    )
+else:
+    backtest_stop_atr = DEFAULT_STOP_ATR_MULTIPLIER
+    backtest_take_profit_atr = DEFAULT_TAKE_PROFIT_ATR_MULTIPLIER
 
 refresh_data = st.checkbox("Refresh data instead of using cache")
 
 
 if mode == "Single Symbol Analysis":
-    symbol = st.text_input("Symbol", value="AAPL")
+    symbol_input = st.text_input("Symbol", value="AAPL")
+    symbol = clean_symbol(symbol_input)
 
     if st.button("Analyze"):
-        try:
-            data = get_price_data(
-                symbol,
-                period=period,
-                interval=interval,
-                refresh=refresh_data,
-            )
+        invalid_symbols = validate_symbols([symbol])
+        if not symbol:
+            st.error("Enter a symbol before running analysis.")
+        elif invalid_symbols:
+            st.error(f"Invalid symbol format: {invalid_symbols[0]}")
+        else:
+            try:
+                data = get_price_data(
+                    symbol,
+                    period=period,
+                    interval=interval,
+                    refresh=refresh_data,
+                )
 
-            data = add_indicators(data)
+                data = add_indicators(data)
 
-            analysis = analyze_market_state(data)
-            structure = analyze_structure(data)
-            explanation = explain_signal(analysis, structure)
+                analysis = analyze_market_state(data)
+                structure = analyze_structure(data)
+                explanation = explain_signal(analysis, structure)
 
-            backtest = backtest_market_state(
-                data,
-                holding_days=holding_days,
-                transaction_cost_pct=transaction_cost_pct,
-                periods_per_year=52 if interval == "1wk" else 252,
-            )
+                backtest = backtest_market_state(
+                    data,
+                    holding_days=holding_days,
+                    transaction_cost_pct=transaction_cost_pct,
+                    periods_per_year=periods_per_year_for_interval(interval),
+                    use_risk_exits=use_risk_exits,
+                    stop_atr_multiplier=backtest_stop_atr,
+                    take_profit_atr_multiplier=backtest_take_profit_atr,
+                )
 
-            report = create_report(
-                symbol,
-                analysis,
-                backtest["signals"],
-                structure,
-                explanation,
-            )
+                report = create_report(
+                    symbol,
+                    analysis,
+                    backtest["signals"],
+                    structure,
+                    explanation,
+                )
 
-            st.session_state["analysis_result"] = {
-                "symbol": symbol,
-                "data": data,
-                "analysis": analysis,
-                "structure": structure,
-                "explanation": explanation,
-                "backtest": backtest,
-                "report": report,
-            }
-        except Exception as e:
-            st.session_state.pop("analysis_result", None)
-            st.error(f"Something went wrong: {e}")
+                st.session_state["analysis_result"] = {
+                    "symbol": symbol,
+                    "data": data,
+                    "analysis": analysis,
+                    "structure": structure,
+                    "explanation": explanation,
+                    "backtest": backtest,
+                    "report": report,
+                }
+            except Exception as e:
+                st.session_state.pop("analysis_result", None)
+                st.error(f"Something went wrong: {e}")
 
     result = st.session_state.get("analysis_result")
 
@@ -171,6 +238,7 @@ if mode == "Single Symbol Analysis":
                 rows.append({
                     "Signal": signal_name,
                     "Signals Found": result["signals"],
+                    "Confidence": result["confidence"],
                     "Hit Rate (%)": result["hit_rate"],
                     "Average Return (%)": result["average_return"],
                     "Max Drawdown (%)": result["max_drawdown"],
@@ -178,12 +246,12 @@ if mode == "Single Symbol Analysis":
                     "Worst Trade (%)": result["worst_trade"],
                     "Win/Loss Ratio": result["win_loss_ratio"],
                     "Sharpe Ratio": result["sharpe_ratio"],
-                    "Sample Caveat": sample_size_note(result["signals"]),
+                    "Sample Caveat": small_sample_note(result["signals"]),
                 })
 
-            if any(result["signals"] < 10 for result in signals_backtest.values()):
+            if any(result["signals"] < LOW_CONFIDENCE_TRADES for result in signals_backtest.values()):
                 st.warning(
-                    "Some backtest rows are based on fewer than 10 matching signals. "
+                    "Some backtest rows are based on low sample counts. "
                     "Hit rate, Sharpe ratio, and average return can swing heavily with samples that small."
                 )
 
@@ -220,8 +288,22 @@ if mode == "Single Symbol Analysis":
         latest_atr = float(data["ATR_14"].dropna().iloc[-1])
 
         with st.expander("ATR-Based Stops (auto-filled from live data)", expanded=True):
-            atr_sl_mult = st.slider("Stop loss ATR multiplier", 1.0, 4.0, 2.0, 0.5, key="atr_sl")
-            atr_tp_mult = st.slider("Take profit ATR multiplier", 1.0, 8.0, 4.0, 0.5, key="atr_tp")
+            atr_sl_mult = st.slider(
+                "Stop loss ATR multiplier",
+                1.0,
+                4.0,
+                DEFAULT_STOP_ATR_MULTIPLIER,
+                0.5,
+                key="atr_sl",
+            )
+            atr_tp_mult = st.slider(
+                "Take profit ATR multiplier",
+                1.0,
+                8.0,
+                DEFAULT_TAKE_PROFIT_ATR_MULTIPLIER,
+                0.5,
+                key="atr_tp",
+            )
 
             atr_stops = calculate_atr_stops(latest_close, latest_atr, atr_sl_mult, atr_tp_mult)
 
@@ -280,7 +362,7 @@ if mode == "Single Symbol Analysis":
             n_splits=4,
             holding_days=holding_days,
             transaction_cost_pct=transaction_cost_pct,
-            periods_per_year=52 if interval == "1wk" else 252,
+            periods_per_year=periods_per_year_for_interval(interval),
         )
 
         if wf["note"]:
@@ -289,9 +371,9 @@ if mode == "Single Symbol Analysis":
             st.write("No out-of-sample trades were generated.")
         else:
             wf_df = pd.DataFrame(wf["folds"])
-            if (wf_df["test_trades"] < 10).any():
+            if (wf_df["test_trades"] < LOW_CONFIDENCE_TRADES).any():
                 st.warning(
-                    "One or more out-of-sample folds has fewer than 10 trades. "
+                    "One or more out-of-sample folds has a low trade count. "
                     "Use those fold metrics as directional context, not precise estimates."
                 )
             st.dataframe(wf_df, width="stretch")
@@ -339,47 +421,49 @@ elif mode == "Watchlist Scanner":
     )
 
     if st.button("Scan Watchlist"):
-        symbols = [
-            symbol.strip().upper()
-            for symbol in watchlist_text.split(",")
-            if symbol.strip()
-        ]
+        symbols = parse_symbols(watchlist_text)
+        invalid_symbols = validate_symbols(symbols)
 
-        with st.spinner("Scanning watchlist..."):
-            scan_results = scan_watchlist(
-                symbols=symbols,
-                period=period,
-                interval=interval,
-                holding_days=holding_days,
-                transaction_cost_pct=transaction_cost_pct,
-                refresh=refresh_data,
+        if not symbols:
+            st.error("Enter at least one symbol to scan.")
+        elif invalid_symbols:
+            st.error(f"Invalid symbol format: {', '.join(invalid_symbols)}")
+        else:
+            with st.spinner("Scanning watchlist..."):
+                scan_results = scan_watchlist(
+                    symbols=symbols,
+                    period=period,
+                    interval=interval,
+                    holding_days=holding_days,
+                    transaction_cost_pct=transaction_cost_pct,
+                    refresh=refresh_data,
+                )
+
+            scanner_df = pd.DataFrame(scan_results)
+
+            if "Hit Rate (%)" in scanner_df.columns:
+                st.caption(
+                    "Scanner scores use historical signal samples from the selected period. "
+                    "Thin samples can make rankings noisy, especially on short periods or weekly data."
+                )
+
+            if "Score" in scanner_df.columns:
+                scanner_df = scanner_df.sort_values(
+                    by="Score",
+                    ascending=False,
+                )
+
+            st.subheader("Watchlist Results")
+            st.dataframe(scanner_df, width="stretch")
+
+            csv = scanner_df.to_csv(index=False)
+
+            st.download_button(
+                label="Download scanner results as CSV",
+                data=csv,
+                file_name="watchlist_scan.csv",
+                mime="text/csv",
             )
-
-        scanner_df = pd.DataFrame(scan_results)
-
-        if "Hit Rate (%)" in scanner_df.columns:
-            st.caption(
-                "Scanner scores use historical signal samples from the selected period. "
-                "Thin samples can make rankings noisy, especially on short periods or weekly data."
-            )
-
-        if "Score" in scanner_df.columns:
-            scanner_df = scanner_df.sort_values(
-                by="Score",
-                ascending=False,
-            )
-
-        st.subheader("Watchlist Results")
-        st.dataframe(scanner_df, width="stretch")
-
-        csv = scanner_df.to_csv(index=False)
-
-        st.download_button(
-            label="Download scanner results as CSV",
-            data=csv,
-            file_name="watchlist_scan.csv",
-            mime="text/csv",
-        )
 
 
 else:
@@ -397,46 +481,48 @@ else:
     )
 
     if st.button("Analyze Portfolio"):
-        symbols = [
-            symbol.strip().upper()
-            for symbol in portfolio_text.split(",")
-            if symbol.strip()
-        ]
+        symbols = parse_symbols(portfolio_text)
+        invalid_symbols = validate_symbols(symbols)
 
-        with st.spinner("Analyzing portfolio..."):
-            portfolio = analyze_portfolio(
-                symbols=symbols,
-                period=period,
-                interval=interval,
-                refresh=refresh_data,
-                periods_per_year=52 if interval == "1wk" else 252,
-            )
-
-        if portfolio.get("note"):
-            st.warning(portfolio["note"])
+        if not symbols:
+            st.error("Enter at least two symbols to analyze a portfolio.")
+        elif invalid_symbols:
+            st.error(f"Invalid symbol format: {', '.join(invalid_symbols)}")
         else:
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Annual return", f"{portfolio['annual_return_pct']}%")
-            col2.metric("Annual volatility", f"{portfolio['annual_volatility_pct']}%")
-            col3.metric("Diversification score", f"{portfolio['diversification_score']}/100")
+            with st.spinner("Analyzing portfolio..."):
+                portfolio = analyze_portfolio(
+                    symbols=symbols,
+                    period=period,
+                    interval=interval,
+                    refresh=refresh_data,
+                    periods_per_year=periods_per_year_for_interval(interval),
+                )
 
-            st.caption(
-                f"Equal weight: {portfolio['weight_each_pct']}% each. "
-                f"Average pairwise correlation: {portfolio['average_correlation']}."
-            )
+            if portfolio.get("note"):
+                st.warning(portfolio["note"])
+            else:
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Annual return", f"{portfolio['annual_return_pct']}%")
+                col2.metric("Annual volatility", f"{portfolio['annual_volatility_pct']}%")
+                col3.metric("Diversification score", f"{portfolio['diversification_score']}/100")
 
-            st.markdown("**Correlation matrix**")
-            st.dataframe(portfolio["correlation_matrix"], width="stretch")
+                st.caption(
+                    f"Equal weight: {portfolio['weight_each_pct']}% each. "
+                    f"Average pairwise correlation: {portfolio['average_correlation']}."
+                )
 
-            st.markdown("**Annualized volatility per symbol**")
-            st.dataframe(
-                pd.DataFrame.from_dict(
-                    portfolio["per_symbol_volatility_pct"],
-                    orient="index",
-                    columns=["Volatility (%)"],
-                ),
-                width="stretch",
-            )
+                st.markdown("**Correlation matrix**")
+                st.dataframe(portfolio["correlation_matrix"], width="stretch")
 
-        if portfolio.get("errors"):
-            st.error(f"Could not load: {portfolio['errors']}")
+                st.markdown("**Annualized volatility per symbol**")
+                st.dataframe(
+                    pd.DataFrame.from_dict(
+                        portfolio["per_symbol_volatility_pct"],
+                        orient="index",
+                        columns=["Volatility (%)"],
+                    ),
+                    width="stretch",
+                )
+
+            if portfolio.get("errors"):
+                st.error(f"Could not load: {portfolio['errors']}")

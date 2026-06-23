@@ -1,4 +1,4 @@
-from core.ai_explanation import build_facts, templated_explanation, explain_market_state
+from core.ai_explanation import build_facts, explain_market_state, templated_explanation
 
 
 def _sample_inputs():

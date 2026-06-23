@@ -4,7 +4,6 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CACHE_DIR = Path(os.environ.get("MARKET_STATE_CACHE_DIR", PROJECT_ROOT / "cache"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)

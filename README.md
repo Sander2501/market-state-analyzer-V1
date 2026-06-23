@@ -18,10 +18,10 @@ It fetches live data, classifies the current market state, runs a historical bac
 | **Market State Classification** | Trend, momentum, and volatility regime |
 | **Regime Detection** | Trending Up/Down, Volatile, Range Bound, Breakout/Breakdown |
 | **Support & Resistance** | Structural highs/lows with proximity detection |
-| **Signal Backtesting** | Hit rate, avg return, Sharpe ratio, max drawdown per signal type |
+| **Signal Backtesting** | Hit rate, avg return, Sharpe ratio, max drawdown, confidence labels, and optional ATR exits |
 | **Walk-Forward Testing** | Out-of-sample date-split evaluation across rolling folds |
 | **Monte Carlo Simulation** | Resampled equity curves with expected/best/worst case and drawdown |
-| **Risk Calculator** | ATR-based stops, Risk/Reward ratio, position sizing |
+| **Risk Calculator** | ATR-based stops, Risk/Reward ratio, position sizing, and matching backtest exit controls |
 | **Portfolio Analyzer** | Annualized return/volatility, correlation matrix, diversification score |
 | **Market-State Explanation** | Plain-English narrative generated directly from live stats |
 | **Watchlist Scanner** | Composite-scored ranking across multiple symbols |
@@ -36,11 +36,19 @@ Every single-symbol analysis includes a plain-English explanation of the current
 
 For each signal type, the engine finds historical occurrences, simulates a fixed holding-period exit, applies transaction costs, and reports hit rate, average return, max drawdown, annualized Sharpe ratio, win/loss ratio, and best/worst trade.
 
-Small historical samples are flagged in the UI because hit rate, Sharpe ratio, and average return can swing heavily with only a few matching signals.
+Small historical samples are flagged in the UI with confidence labels: low confidence below 10 trades, medium below 30, and higher confidence at 30 or more. Hit rate, Sharpe ratio, and average return can swing heavily with only a few matching signals. The backtest can also use optional ATR stop-loss and take-profit exits instead of only a fixed holding-period exit.
 
 ## Walk-Forward Testing
 
 Walk-forward testing splits the data into sequential date windows and scores each later test window separately. The signal rules are fixed rather than fitted, so this is a date-split robustness check, not parameter optimization.
+
+## Methodology Notes
+
+- Market state uses rule-based indicators: moving averages, RSI, volatility, and recent structure.
+- Backtests compare historical occurrences of the same signal.
+- ATR risk exits are optional. If a stop and take profit are both touched in one bar, the stop is assumed first.
+- Walk-forward testing is a sequential date split with fixed rules, not parameter fitting.
+- Monte Carlo resamples historical trade outcomes. It is not a price forecast.
 
 ## Cache Location
 
@@ -96,4 +104,10 @@ market-state-analyzer/
 
 ```bash
 pytest
+ruff check .
 ```
+
+
+## Screenshots
+
+Add screenshots from a local Streamlit run to `docs/screenshots/` when preparing the project for a portfolio or README showcase.

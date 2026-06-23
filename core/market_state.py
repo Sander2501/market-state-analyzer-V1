@@ -1,7 +1,7 @@
 import pandas as pd
 
-from core.signals import get_signal
 from core.regime import detect_regime
+from core.signals import get_signal
 
 
 def analyze_market_state(data: pd.DataFrame) -> dict:

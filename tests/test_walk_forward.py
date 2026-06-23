@@ -1,7 +1,7 @@
 import pandas as pd
 
-from core.indicators import add_indicators
 from backtesting.walk_forward import walk_forward_analysis
+from core.indicators import add_indicators
 
 
 def _data(rows: int = 180) -> pd.DataFrame:

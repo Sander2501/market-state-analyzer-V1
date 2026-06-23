@@ -1,11 +1,9 @@
 import pandas as pd
 
-TREND_THRESHOLD_PCT = 1.0
-VOLATILE_RATIO = 1.5
-BREAKOUT_RATIO = 1.2
+from core.config import BREAKOUT_RATIO, REGIME_LOOKBACK, TREND_THRESHOLD_PCT, VOLATILE_RATIO
 
 
-def detect_regime(data: pd.DataFrame, lookback: int = 20) -> dict:
+def detect_regime(data: pd.DataFrame, lookback: int = REGIME_LOOKBACK) -> dict:
     df = data.dropna()
 
     if len(df) < lookback + 1:
