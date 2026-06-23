@@ -1,11 +1,13 @@
+import os
 from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
 
 
-CACHE_DIR = Path("cache")
-CACHE_DIR.mkdir(exist_ok=True)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CACHE_DIR = Path(os.environ.get("MARKET_STATE_CACHE_DIR", PROJECT_ROOT / "cache"))
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_price_data(

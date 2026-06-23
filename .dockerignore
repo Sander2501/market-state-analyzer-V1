@@ -1,9 +1,7 @@
 venv/
+.git/
 __pycache__/
 .pytest_cache/
 cache/
 *.csv
 .env
-.DS_Store
-
-*.egg-info/

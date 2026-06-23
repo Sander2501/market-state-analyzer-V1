@@ -1,20 +1,20 @@
 import pandas as pd
 
-from core.indicators import add_indicators
 from backtesting.engine import backtest_market_state
+from core.indicators import add_indicators
 
 
-def test_backtest_returns_expected_keys():
-    data = pd.DataFrame({
-        "Open": range(1, 151),
-        "High": range(2, 152),
-        "Low": range(0, 150),
-        "Close": range(1, 151),
-    })
+def test_backtest_returns_trade_log_and_benchmark():
+    closes = list(range(100, 180))
+    data = add_indicators(pd.DataFrame({
+        "Open": closes,
+        "High": [value + 1 for value in closes],
+        "Low": [value - 1 for value in closes],
+        "Close": closes,
+        "Volume": [1000] * len(closes),
+    }))
 
-    data = add_indicators(data)
-
-    result = backtest_market_state(data)
+    result = backtest_market_state(data, holding_days=5)
 
     assert "signals" in result
     assert "benchmark" in result

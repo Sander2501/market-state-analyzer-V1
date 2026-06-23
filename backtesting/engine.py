@@ -17,7 +17,11 @@ def calculate_max_drawdown(returns: list[float]) -> float:
     return round(max_drawdown * 100, 2)
 
 
-def calculate_sharpe_ratio(returns: list[float]) -> float | None:
+def calculate_sharpe_ratio(
+    returns: list[float],
+    holding_days: int = 10,
+    periods_per_year: int = 252,
+) -> float | None:
     if len(returns) < 2:
         return None
 
@@ -26,12 +30,18 @@ def calculate_sharpe_ratio(returns: list[float]) -> float | None:
     if returns_series.std() == 0:
         return None
 
-    sharpe = returns_series.mean() / returns_series.std()
+    per_trade_sharpe = returns_series.mean() / returns_series.std()
+    trades_per_year = max(periods_per_year / holding_days, 1)
+    sharpe = per_trade_sharpe * (trades_per_year ** 0.5)
 
     return round(sharpe, 2)
 
 
-def summarize_returns(returns: list[float]) -> dict:
+def summarize_returns(
+    returns: list[float],
+    holding_days: int = 10,
+    periods_per_year: int = 252,
+) -> dict:
     if not returns:
         return {
             "signals": 0,
@@ -62,7 +72,7 @@ def summarize_returns(returns: list[float]) -> dict:
         "best_trade": round(max(returns) * 100, 2),
         "worst_trade": round(min(returns) * 100, 2),
         "win_loss_ratio": win_loss_ratio,
-        "sharpe_ratio": calculate_sharpe_ratio(returns),
+        "sharpe_ratio": calculate_sharpe_ratio(returns, holding_days, periods_per_year),
     }
 
 
@@ -79,6 +89,7 @@ def backtest_market_state(
     data: pd.DataFrame,
     holding_days: int = 10,
     transaction_cost_pct: float = 0.1,
+    periods_per_year: int = 252,
 ) -> dict:
     df = data.dropna().copy()
     results = {}
@@ -127,7 +138,7 @@ def backtest_market_state(
 
     return {
         "signals": {
-            signal: summarize_returns(returns)
+            signal: summarize_returns(returns, holding_days, periods_per_year)
             for signal, returns in results.items()
         },
         "benchmark": {

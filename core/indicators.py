@@ -23,4 +23,10 @@ def add_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df["Daily_Return"] = df["Close"].pct_change()
     df["Volatility_20"] = df["Daily_Return"].rolling(window=20).std()
 
+    high_low = df["High"] - df["Low"]
+    high_close = (df["High"] - df["Close"].shift()).abs()
+    low_close = (df["Low"] - df["Close"].shift()).abs()
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df["ATR_14"] = true_range.rolling(window=14).mean()
+
     return df

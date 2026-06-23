@@ -1,6 +1,7 @@
 import pandas as pd
 
 from core.signals import get_signal
+from core.regime import detect_regime
 
 
 def analyze_market_state(data: pd.DataFrame) -> dict:
@@ -36,6 +37,7 @@ def analyze_market_state(data: pd.DataFrame) -> dict:
         volatility_state = "Normal / low volatility"
 
     signal = get_signal(latest)
+    regime = detect_regime(data)
 
     return {
         "close": round(close, 2),
@@ -44,4 +46,6 @@ def analyze_market_state(data: pd.DataFrame) -> dict:
         "rsi": round(rsi, 2),
         "volatility": volatility_state,
         "signal": signal,
+        "regime": regime["regime"],
+        "regime_detail": regime,
     }

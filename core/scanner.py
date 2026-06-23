@@ -31,6 +31,8 @@ def scan_watchlist(
 ) -> list[dict]:
     results = []
 
+    periods_per_year = 52 if interval == "1wk" else 252
+
     for symbol in symbols:
         try:
             data = get_price_data(
@@ -47,6 +49,7 @@ def scan_watchlist(
                 data,
                 holding_days=holding_days,
                 transaction_cost_pct=transaction_cost_pct,
+                periods_per_year=periods_per_year,
             )
 
             current_signal = analysis["signal"]
@@ -59,6 +62,7 @@ def scan_watchlist(
                 "Score": score,
                 "Close": analysis["close"],
                 "Trend": analysis["trend"],
+                "Regime": analysis["regime"],
                 "RSI": analysis["rsi"],
                 "Signal": current_signal,
                 "Hit Rate (%)": signal_stats["hit_rate"] if signal_stats else None,

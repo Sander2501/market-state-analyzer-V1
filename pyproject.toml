@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "market-state-analyzer"
+version = "0.1.0"
+description = "Market-state analysis, signal backtesting, and risk management in Streamlit."
+requires-python = ">=3.14"
+
+[tool.setuptools]
+packages = ["backtesting", "core", "data", "ui"]
